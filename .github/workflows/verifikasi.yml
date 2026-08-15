@@ -46,7 +46,15 @@ jobs:
       - name: Tes
         run: npm test
 
-      - name: Tes tanpa model penglihatan
+      # Langkah ini adalah bukti tunggal untuk klaim arsitektural terpenting
+      # proyek ini: model penglihatan bisa dicabut tanpa mematikan sistem.
+      # Kalau ia merah, klaim itu bohong — perlakukan sebagai kegagalan tugas,
+      # bukan sebagai tes yang perlu diperbaiki.
+      #
+      # `VISION_API_KEY` sengaja TIDAK diisi. Kalau langkah ini lulus tanpa
+      # kunci API sama sekali, tidak ada jalur tersembunyi yang diam-diam
+      # memanggil model.
+      - name: Tes tanpa model penglihatan (bukti isolasi model)
         run: npm test
         env:
           VISION_ENABLED: "false"
