@@ -15,6 +15,7 @@ import {
   sliderAktifPada,
   usePesanTransisi,
 } from "@/components/PesanTransisi";
+import { PenolakanWadahTakTerdaftar } from "@/components/PenolakanWadahTakTerdaftar";
 import { SliderFraksi } from "@/components/SliderFraksi";
 
 /*
@@ -55,7 +56,8 @@ interface EstimasiTersimpan {
   rentangBawah: string;
   rentangAtas: string;
   wajibManual: boolean;
-  catatanKalibrasi: string | null;
+  sumberKalibrasi: "deklarasi" | "terkalibrasi";
+  konstantaPerkiraan: boolean;
 }
 
 export function LayarPencatatan({
@@ -80,6 +82,7 @@ export function LayarPencatatan({
   const [pesan, setPesan] = useState<string | null>(null);
   const [menyimpan, setMenyimpan] = useState(false);
   const [tersimpan, setTersimpan] = useState(jumlahWadahTercatat);
+  const [wadahTakTerdaftar, setWadahTakTerdaftar] = useState(false);
 
   const siap = wadahId !== null && jenisId !== null;
   const porsiPenuh = siap
@@ -108,20 +111,16 @@ export function LayarPencatatan({
     if (!isi.estimasi) return null;
 
     const e = isi.estimasi;
-    const catatanKalibrasi =
-      e.sumberKalibrasi === "deklarasi"
-        ? "Belum terkalibrasi — angka akan membaik setelah beberapa koreksi."
-        : e.konstantaPerkiraan
-          ? "Angka ini perkiraan dari wadah sejenis."
-          : null;
-
     return {
       id: e.id,
       porsiEstimasi: e.porsiEstimasi,
       rentangBawah: e.rentangBawah,
       rentangAtas: e.rentangAtas,
       wajibManual: e.wajibManual,
-      catatanKalibrasi,
+      // Diteruskan apa adanya — komponen badge yang memutuskan apakah ada yang
+      // perlu ditampilkan, dan ia hilang sendiri saat terkalibrasi (6.4).
+      sumberKalibrasi: e.sumberKalibrasi,
+      konstantaPerkiraan: e.konstantaPerkiraan,
     };
   }
 
@@ -150,9 +149,14 @@ export function LayarPencatatan({
          * keluarnya ("pakai geser saja, hasilnya sama"). Layar tidak
          * menambahkan apa pun — slider di bawah sudah aktif.
          */
-        setPesan(
-          (badan as { pesan?: string }).pesan ?? "Pakai geser saja, hasilnya sama.",
-        );
+        const isi = badan as { kode?: string; pesan?: string };
+        // 6.5 — sistem MENOLAK MENEBAK untuk wadah tak terdaftar, dan
+        // penolakannya membawa dua jalan keluar, bukan jalan buntu.
+        if (isi.kode === "WADAH_TIDAK_TERDAFTAR") {
+          setWadahTakTerdaftar(true);
+          return;
+        }
+        setPesan(isi.pesan ?? "Pakai geser saja, hasilnya sama.");
         return;
       }
 
@@ -186,9 +190,12 @@ export function LayarPencatatan({
       const badan: unknown = await jawaban.json();
 
       if (!jawaban.ok) {
-        setPesan(
-          (badan as { pesan?: string }).pesan ?? "Belum tersimpan. Coba sekali lagi.",
-        );
+        const isi = badan as { kode?: string; pesan?: string };
+        if (isi.kode === "WADAH_TIDAK_TERDAFTAR") {
+          setWadahTakTerdaftar(true);
+          return;
+        }
+        setPesan(isi.pesan ?? "Belum tersimpan. Coba sekali lagi.");
         return;
       }
 
@@ -208,6 +215,7 @@ export function LayarPencatatan({
     setIsCampuran(false);
     setPersen(50);
     setPesan(null);
+    setWadahTakTerdaftar(false);
   }
 
   return (
@@ -248,7 +256,17 @@ export function LayarPencatatan({
         Isinya tercampur beberapa jenis
       </label>
 
-      {estimasi === null ? (
+      {wadahTakTerdaftar ? (
+        <PenolakanWadahTakTerdaftar
+          kembaliKe={`/catat/${catatanId}`}
+          onMasukkanManual={() => {
+            // "Masukkan manual" tidak meninggalkan layar — slider sudah ada di
+            // bawah. Beralih ke sana adalah satu ketukan, bukan navigasi.
+            setWadahTakTerdaftar(false);
+            setPesan(null);
+          }}
+        />
+      ) : estimasi === null ? (
         <>
           {/* Ketukan 3 */}
           <BingkaiKamera
@@ -287,7 +305,8 @@ export function LayarPencatatan({
           porsiEstimasi={estimasi.porsiEstimasi}
           rentangBawah={estimasi.rentangBawah}
           rentangAtas={estimasi.rentangAtas}
-          catatanKalibrasi={estimasi.catatanKalibrasi}
+          sumberKalibrasi={estimasi.sumberKalibrasi}
+          konstantaPerkiraan={estimasi.konstantaPerkiraan}
           wajibManual={estimasi.wajibManual}
           menyimpan={menyimpan}
           onBenar={selesaikanWadah}

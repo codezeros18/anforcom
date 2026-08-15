@@ -134,6 +134,47 @@ export const skemaAnomali = z.object({
   alasan: z.string().trim().min(1, "Tulis sebentar alasannya.").max(160),
 });
 
+// ---------------------------------------------------------------------------
+// 6.1 — pendaftaran wadah, jenis masakan, dan kalibrasi
+// ---------------------------------------------------------------------------
+
+/*
+ * PERHATIKAN APA YANG TIDAK DIMINTA DI SINI: tidak ada diameter, tidak ada
+ * tinggi, tidak ada volume dalam liter atau sentimeter.
+ *
+ * Operator tidak tahu ukuran pancinya dan tidak akan mengukurnya — meminta
+ * angka itu akan menghentikan pendaftaran di wadah pertama. Yang dia tahu
+ * betul justru yang kita butuhkan: berapa porsi yang muat kalau panci itu
+ * penuh. Angka konstanta datang dari pengetahuan dapur itu sendiri, bukan dari
+ * asumsi kita tentang geometri.
+ */
+
+export const skemaWadahBaru = z.object({
+  nama: z
+    .string()
+    .trim()
+    .min(1, "Nama wadahnya belum diisi.")
+    .max(80, "Namanya terlalu panjang."),
+  bentuk: z.enum(["panci", "nampan", "baskom", "ompreng", "box", "lainnya"]),
+  fotoAcuanUrl: z.string().trim().max(2000).optional().nullable(),
+});
+
+export const skemaJenisMasakanBaru = z.object({
+  nama: z
+    .string()
+    .trim()
+    .min(1, "Nama masakannya belum diisi.")
+    .max(80, "Namanya terlalu panjang."),
+  kategoriFisik: z.enum(["padat_rata", "padat_menggunung", "berkuah"]),
+});
+
+export const skemaKalibrasiBaru = z.object({
+  wadahId: id,
+  jenisMasakanId: id,
+  /** Jawaban operator atas "kalau penuh, kira-kira berapa porsi?" */
+  porsiPenuh: porsiTeks,
+});
+
 /**
  * Mengubah galat Zod menjadi satu kalimat untuk operator.
  *

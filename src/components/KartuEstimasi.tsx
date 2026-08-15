@@ -1,5 +1,7 @@
 "use client";
 
+import { BadgeSumberKalibrasi } from "./BadgeSumberKalibrasi";
+
 /*
  * Hasil estimasi — tugas 5.13.
  *
@@ -22,8 +24,9 @@ export interface KartuEstimasiProps {
   porsiEstimasi: string;
   rentangBawah: string;
   rentangAtas: string;
-  /** Badge kalibrasi, mis. "Belum terkalibrasi — angka akan membaik…". */
-  catatanKalibrasi: string | null;
+  /** Badge sumber kalibrasi — tugas 6.4. Hilang sendiri saat terkalibrasi. */
+  sumberKalibrasi: "deklarasi" | "terkalibrasi";
+  konstantaPerkiraan: boolean;
   wajibManual: boolean;
   onBenar: () => void;
   onKoreksi: () => void;
@@ -38,7 +41,8 @@ export function KartuEstimasi({
   porsiEstimasi,
   rentangBawah,
   rentangAtas,
-  catatanKalibrasi,
+  sumberKalibrasi,
+  konstantaPerkiraan,
   wajibManual,
   onBenar,
   onKoreksi,
@@ -59,11 +63,9 @@ export function KartuEstimasi({
         porsi, antara {ringkas(rentangBawah)} dan {ringkas(rentangAtas)}
       </p>
 
-      {catatanKalibrasi && (
-        <p className="text-konteks mt-3 rounded-lg bg-perhatian-100 px-3 py-2 text-perhatian-700">
-          {catatanKalibrasi}
-        </p>
-      )}
+      <div className="mt-3">
+        <BadgeSumberKalibrasi sumber={sumberKalibrasi} perkiraan={konstantaPerkiraan} />
+      </div>
 
       {wajibManual && (
         <p className="text-konteks mt-3 text-netral-700">
