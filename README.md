@@ -85,18 +85,22 @@ Buka `http://localhost:3000`. Layar utama akan menampilkan data dapur contoh.
 
 ### Wajib untuk menjalankan lokal
 
-| Variabel       | Isi                          | Bila kosong          |
-| -------------- | ---------------------------- | -------------------- |
-| `DATABASE_URL` | Connection string PostgreSQL | Aplikasi gagal start |
+| Variabel       | Isi                                                        | Bila kosong          |
+| -------------- | ---------------------------------------------------------- | -------------------- |
+| `DATABASE_URL` | Connection string PostgreSQL                               | Aplikasi gagal start |
+| `DIRECT_URL`   | Koneksi langsung tanpa pooler, dipakai `prisma migrate`     | Migrasi gagal        |
 
 ### Opsional — hanya bila fiturnya dipakai
 
-| Variabel                     | Isi                               | Bila kosong                                                                    |
-| ---------------------------- | --------------------------------- | ------------------------------------------------------------------------------ |
-| `VISION_ENABLED`             | `true` / `false`. Default `true`  | Diperlakukan sebagai `true`                                                    |
-| `VISION_API_KEY`             | Kunci API model penglihatan       | Pembacaan foto tidak tersedia; **aplikasi tetap berfungsi penuh** lewat slider |
-| `STORAGE_URL`, `STORAGE_KEY` | Object storage untuk foto         | Foto tidak tersimpan; alur lain tetap jalan                                    |
-| `RESEARCH_ENDPOINTS_ENABLED` | `true` / `false`. Default `false` | Endpoint pencatatan data riset tidak aktif                                     |
+| Variabel                        | Isi                                    | Bila kosong                                                                    |
+| ------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------ |
+| `VISION_ENABLED`                | `true` / `false`. Default `true`       | Diperlakukan sebagai `true`                                                    |
+| `VISION_API_KEY`, `VISION_API_URL` | Kunci dan endpoint model penglihatan | Pembacaan foto tidak tersedia; **aplikasi tetap berfungsi penuh** lewat slider |
+| `VISION_TIMEOUT_MS`             | Batas waktu satu panggilan model        | Dipakai nilai bawaan 6000 ms                                                   |
+| `S3_*`                          | Object storage S3-kompatibel untuk foto | Foto tidak tersimpan; alur lain tetap jalan                                    |
+| `NEXT_PUBLIC_URL_APLIKASI`      | URL publik aplikasi                     | Tautan absolut jatuh ke `http://localhost:3000`                                |
+
+Daftar lengkap beserta penjelasan per variabel ada di [`.env.example`](.env.example).
 
 **Catatan penting:** aplikasi ini dirancang agar tetap berfungsi sepenuhnya tanpa model penglihatan. Jalankan dengan `VISION_ENABLED=false` untuk membuktikannya — seluruh alur pencatatan tetap dapat diselesaikan lewat slider fraksi keterisian.
 
