@@ -1,0 +1,15 @@
+# Baris baru diseragamkan LF di repo dan di direktori kerja.
+#
+# Tanpa ini, checkout di Windows menghasilkan CRLF sementara Prettier
+# dikonfigurasi `endOfLine: lf`, sehingga `npm run format:cek` gagal di CI untuk
+# berkas yang tidak pernah disentuh siapa pun. Tiga agen bekerja di sistem
+# operasi yang bisa berbeda; ini menghilangkan seluruh kelas masalah itu.
+* text=auto eol=lf
+
+# Berkas biner tidak boleh disentuh normalisasi baris baru.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.pdf binary
