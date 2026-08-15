@@ -26,6 +26,22 @@ export type Peran = "operator" | "pengelola";
 
 export type MetodeEstimasi = "model" | "slider" | "manual";
 
+/**
+ * Asal konstanta kalibrasi.
+ *
+ * `deklarasi` — konstanta berasal dari jawaban operator saat pendaftaran wadah
+ * ("kalau wadah ini penuh berisi nasi, kira-kira berapa porsi?"). Angka awal
+ * datang dari pengetahuan dapur itu sendiri, bukan asumsi kita. Selama masih
+ * `deklarasi`, rentang keyakinan dilebarkan karena belum teruji koreksi.
+ *
+ * `terkalibrasi` — konstanta sudah diperbarui dari riwayat koreksi operator
+ * sebanyak ambang yang ditetapkan.
+ *
+ * Transisinya satu arah. Konstanta yang sudah terkalibrasi tidak pernah kembali
+ * menjadi deklarasi.
+ */
+export type SumberKalibrasi = "deklarasi" | "terkalibrasi";
+
 export const SEMUA_KATEGORI_FISIK: readonly KategoriFisik[] = [
   "padat_rata",
   "padat_menggunung",

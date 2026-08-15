@@ -134,6 +134,62 @@ export function porsiMaks(nilai: readonly Porsi[]): Porsi {
 }
 
 /**
+ * Mengalikan porsi dengan pecahan `pembilang / penyebut`, tetap bilangan bulat.
+ *
+ * Ini satu-satunya jalan mengalikan porsi dengan sesuatu yang bukan bilangan
+ * bulat. Menuliskan `porsi * 0.35` akan menarik pecahan biner masuk ke jalur
+ * perhitungan — dan `0.35` termasuk nilai yang tidak bisa diwakili tepat oleh
+ * float, jadi kesalahannya nyata, bukan teoretis.
+ *
+ * Perkalian dilakukan lebih dulu, pembagian belakangan, supaya presisi tidak
+ * hilang di langkah antara. Pembulatan setengah menjauhi nol.
+ *
+ * Dipakai kalibrasi untuk dua hal: `fraksi x porsiPenuh` (penyebut 10000) dan
+ * lebar rentang dalam perseratus persen (penyebut 10000).
+ */
+export function porsiKaliPecahan(
+  porsi: Porsi,
+  pembilang: number,
+  penyebut: number,
+): Porsi {
+  if (!Number.isSafeInteger(pembilang) || !Number.isSafeInteger(penyebut)) {
+    throw new GalatPorsiTidakSah(
+      `Pecahan harus bilangan bulat, diterima ${String(pembilang)}/${String(penyebut)}.`,
+    );
+  }
+  if (penyebut === 0) {
+    throw new GalatPorsiTidakSah("Pembagian porsi dengan nol tidak terdefinisi.");
+  }
+  return porsiDariPerseratus(bagiBulatkan(porsi * pembilang, penyebut));
+}
+
+/**
+ * Rata-rata berbobot dua porsi: `(bobotA x a + bobotB x b) / (bobotA + bobotB)`.
+ *
+ * Dibulatkan SEKALI di akhir, bukan per suku. Membulatkan tiap suku lebih dulu
+ * bisa menggeser hasil satu perseratus, dan pada rata-rata bergerak yang
+ * dipanggil berulang kali, pergeseran itu menumpuk ke arah yang sama.
+ *
+ * Bobot adalah bilangan bulat, jadi `0.70 x lama + 0.30 x teramati` ditulis
+ * sebagai bobot 70 dan 30 — tanpa satu pun pecahan biner.
+ */
+export function porsiRataRataBerbobot(
+  a: Porsi,
+  bobotA: number,
+  b: Porsi,
+  bobotB: number,
+): Porsi {
+  if (!Number.isSafeInteger(bobotA) || !Number.isSafeInteger(bobotB)) {
+    throw new GalatPorsiTidakSah("Bobot rata-rata harus bilangan bulat.");
+  }
+  const totalBobot = bobotA + bobotB;
+  if (totalBobot === 0) {
+    throw new GalatPorsiTidakSah("Total bobot tidak boleh nol.");
+  }
+  return porsiDariPerseratus(bagiBulatkan(a * bobotA + b * bobotB, totalBobot));
+}
+
+/**
  * Membulatkan KE ATAS ke porsi utuh terdekat.
  *
  * Arah pembulatannya bukan selera. Rekomendasi adalah perintah memasak sekian
