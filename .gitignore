@@ -1,0 +1,47 @@
+# === Dokumen kerja internal ===
+# Satu baris, satu folder. Tidak menyebut nama berkas apa pun.
+/_kerja/
+
+# === Rahasia ===
+.env
+.env.local
+.env*.local
+*.pem
+*.key
+
+# === Dependensi & build ===
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# === Cache alat ===
+.turbo/
+.swc/
+.eslintcache
+.vercel/
+
+# === Prisma ===
+/prisma/*.db
+/prisma/*.db-journal
+
+# === Data lapangan mentah ===
+# Foto, rekaman, dan transkrip yang belum dianonimkan tidak boleh masuk repo.
+/data-mentah/
+*.wav
+*.m4a
+*.mp4
+
+# === Berkas sistem ===
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# === Log & liputan tes ===
+npm-debug.log*
+yarn-error.log*
+/coverage/
