@@ -1,0 +1,57 @@
+# Empat perintah verifikasi dari CLAUDE.md bagian 7, dijalankan pada setiap push.
+#
+# Perintah keempat (`VISION_ENABLED=false npm test`) bukan formalitas. Ia adalah
+# bukti tunggal untuk klaim arsitektural terpenting proyek ini: model penglihatan
+# bisa dicabut tanpa mematikan sistem. Kalau langkah itu merah, pekerjaan yang
+# menyebabkannya dianggap gagal, bukan sekadar perlu perbaikan kecil.
+
+name: Verifikasi
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  verifikasi:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ambil kode
+        uses: actions/checkout@v4
+
+      - name: Siapkan Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Pasang dependensi
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Periksa format
+        run: npm run format:cek
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tes
+        run: npm test
+
+      - name: Tes tanpa model penglihatan
+        run: npm test
+        env:
+          VISION_ENABLED: "false"
+
+      - name: Build
+        run: npm run build
+        env:
+          # Build tidak menyentuh basis data; nilai ini hanya memenuhi validasi
+          # skema Prisma saat pembuatan client.
+          DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
+          DIRECT_URL: "postgresql://ci:ci@localhost:5432/ci"
+          VISION_ENABLED: "false"
