@@ -45,3 +45,5 @@ Thumbs.db
 npm-debug.log*
 yarn-error.log*
 /coverage/
+
+.vercel

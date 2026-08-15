@@ -43,7 +43,7 @@ Di tingkat satu dapur, masalahnya lebih sederhana dan lebih konkret: seseorang h
 
 ## Aplikasi
 
-**Production:** _(akan diisi)_
+**Production:** https://anforcom-ashen.vercel.app
 
 **Akun demo:** _(akan diisi)_
 
