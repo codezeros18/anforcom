@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+/*
+ * Token desain SISA.
+ *
+ * Tailwind versi terpasang (v4) mengelola token lewat direktif `@theme` di CSS,
+ * bukan lewat `tailwind.config.js` seperti versi sebelumnya. Berkas ini adalah
+ * satu-satunya sumber kebenaran untuk skala huruf dan palet.
+ *
+ * Dua aturan yang tidak boleh dilanggar:
+ * 1. Skala huruf dipakai lewat nama semantik (`text-pahlawan`), bukan angka
+ *    mentah (`text-[72px]`). Tiga agen membangun UI di sprint berbeda; nama
+ *    semantik mencegah dua nilai berbeda untuk hal yang sama.
+ * 2. Tidak ada warna merah di palet. `CLAUDE.md` melarang merah untuk data
+ *    dapur, dan menghapusnya dari palet lebih aman daripada mengandalkan
+ *    disiplin masing-masing agen.
+ */
+
+@theme {
+  /* Skala huruf — dikunci di Sprint 0, tidak ditambah tanpa alasan tertulis */
+  --text-pahlawan: 72px; /* angka utama, harus terbaca dari 3 meter di booth */
+  --text-pahlawan--line-height: 1.05;
+  --text-pahlawan--font-weight: 700;
+
+  --text-sekunder: 40px; /* angka pendukung: rentang, lantai keras */
+  --text-sekunder--line-height: 1.15;
+  --text-sekunder--font-weight: 600;
+
+  --text-badan: 16px; /* teks biasa, label tombol */
+  --text-badan--line-height: 1.5;
+
+  --text-konteks: 14px; /* kalimat alasan, badge, keterangan sumber data */
+  --text-konteks--line-height: 1.45;
+
+  /* Palet netral. Sengaja tanpa merah. */
+  --color-netral-50: #fafafa;
+  --color-netral-100: #f4f4f5;
+  --color-netral-200: #e4e4e7;
+  --color-netral-300: #d4d4d8;
+  --color-netral-400: #a1a1aa;
+  --color-netral-500: #71717a;
+  --color-netral-600: #52525b;
+  --color-netral-700: #3f3f46;
+  --color-netral-800: #27272a;
+  --color-netral-900: #18181b;
+
+  /* Aksen tunggal untuk elemen aktif (tombol utama, slider). Bukan penilaian. */
+  --color-aksen-500: #0f766e;
+  --color-aksen-600: #0d5f58;
+
+  /* Penanda perhatian — dipakai untuk badge "data contoh" dan pesan ambang.
+     Bukan merah, karena tidak menandakan kesalahan siapa pun. */
+  --color-perhatian-100: #fef3c7;
+  --color-perhatian-700: #92400e;
+}
+
+:root {
+  --latar: var(--color-netral-50);
+  --tinta: var(--color-netral-900);
+}
+
+body {
+  background: var(--latar);
+  color: var(--tinta);
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+}
