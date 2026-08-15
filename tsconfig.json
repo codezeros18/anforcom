@@ -12,6 +12,10 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    // Node menjalankan berkas .ts secara langsung (type stripping) dan MEWAJIBKAN
+    // ekstensi eksplisit pada impor relatif. Dipakai oleh prisma/seed.mts.
+    // Aman karena noEmit: true — tsc tidak pernah menghasilkan berkas di sini.
+    "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
     "incremental": true,
     "plugins": [

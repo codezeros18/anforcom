@@ -27,6 +27,10 @@ jobs:
           node-version: 22
           cache: npm
 
+      # `postinstall` di package.json menjalankan `prisma generate`, jadi client
+      # Prisma sudah ada sebelum typecheck. Client itu tidak di-commit — ia
+      # hasil generate dari schema.prisma, dan menyimpannya di repo berarti dua
+      # sumber kebenaran yang bisa berbeda diam-diam.
       - name: Pasang dependensi
         run: npm ci
 
@@ -50,8 +54,8 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          # Build tidak menyentuh basis data; nilai ini hanya memenuhi validasi
-          # skema Prisma saat pembuatan client.
+          # Build tidak menyentuh basis data — tidak ada kueri yang dijalankan
+          # saat build. Nilai ini hanya ada supaya konstruksi client tidak gagal
+          # pada pemeriksaan "DATABASE_URL belum diisi" di /src/lib/db.ts.
           DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
-          DIRECT_URL: "postgresql://ci:ci@localhost:5432/ci"
           VISION_ENABLED: "false"

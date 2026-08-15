@@ -1,0 +1,397 @@
+// Skema SISA.
+//
+// Aturan presisi (CLAUDE.md bagian 3 aturan 3) berlaku di seluruh berkas ini:
+//   berat  -> Int      (gram bilangan bulat)
+//   uang   -> Decimal(12,2)
+//   porsi  -> Decimal(8,2)
+//   fraksi -> Decimal(5,4)
+// Tidak ada Float atau Double di mana pun. Keduanya membuat total bergantung
+// pada urutan penjumlahan, dan angka yang tidak bisa direproduksi tidak bisa
+// dipertanggungjawabkan di depan orang yang anggarannya kita hitung.
+//
+// Aturan identitas (CLAUDE.md bagian 3 aturan 1): tidak ada satu pun kolom di
+// berkas ini yang memuat nama, kontak, atau pengenal orang. Yang dicatat adalah
+// PERAN (`operator`, `pengelola`), bukan siapa. Konsekuensinya disengaja: tidak
+// ada cara memfilter data per orang, karena ketakutan terbesar operator adalah
+// datanya dipakai untuk memarahi dia.
+//
+// Penamaan mengikuti CLAUDE.md bagian 5: tabel dan kolom `snake_case` bahasa
+// Indonesia lewat @@map/@map, properti TypeScript `camelCase` bahasa Indonesia.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// URL koneksi TIDAK ditulis di sini. Prisma 7 memindahkannya ke
+// `prisma.config.ts` di root — lihat catatan di berkas itu.
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// ENUM
+// ---------------------------------------------------------------------------
+
+enum JenisDapur {
+  pesantren
+  sekolah
+  kampus
+  rumah_sakit
+  katering
+  rumah_makan
+  lainnya
+
+  @@map("jenis_dapur")
+}
+
+enum BentukWadah {
+  panci
+  nampan
+  baskom
+  ompreng
+  box
+  lainnya
+
+  @@map("bentuk_wadah")
+}
+
+/// Menentukan lebar rentang keyakinan: berkuah ±10%, padat_rata ±20%,
+/// padat_menggunung ±35%. Dipakai di /src/core/kalibrasi.ts (Sprint 2).
+enum KategoriFisik {
+  padat_rata
+  padat_menggunung
+  berkuah
+
+  @@map("kategori_fisik")
+}
+
+/// `deklarasi` = konstanta berasal dari jawaban operator saat pendaftaran,
+/// rentang dilebarkan 1.5x. Berubah menjadi `terkalibrasi` setelah
+/// jumlah_koreksi >= 5.
+enum SumberKalibrasi {
+  deklarasi
+  terkalibrasi
+
+  @@map("sumber_kalibrasi")
+}
+
+/// Peran, bukan orang. Ini satu-satunya bentuk atribusi yang diizinkan sistem.
+enum Peran {
+  operator
+  pengelola
+
+  @@map("peran")
+}
+
+enum MetodeEstimasi {
+  model
+  slider
+  manual
+
+  @@map("metode_estimasi")
+}
+
+enum TujuanPenyaluran {
+  ternak
+  kompos
+  tpa
+
+  @@map("tujuan_penyaluran")
+}
+
+/// Sengaja hanya punya satu nilai. Angka dampak (rupiah, kilogram, persentase)
+/// hanya boleh berasal dari penimbangan tim riset — lihat CLAUDE.md aturan 5.
+/// Enum satu nilai membuat aturan itu terlihat di skema, bukan hanya di dokumen.
+enum DiukurOleh {
+  tim_riset
+
+  @@map("diukur_oleh")
+}
+
+enum PeranPenebak {
+  staf_dapur
+  pengunjung_lokasi
+  lainnya
+
+  @@map("peran_penebak")
+}
+
+// ---------------------------------------------------------------------------
+// ENTITAS
+// ---------------------------------------------------------------------------
+
+model Dapur {
+  id          String     @id @default(uuid()) @db.Uuid
+  nama        String     @db.VarChar(120)
+  /// Nama pengganti saat modeAnonim aktif. Bukan nama orang — label tempat
+  /// generik seperti "Dapur Pesantren di Kota A".
+  labelAnonim String     @map("label_anonim") @db.VarChar(60)
+  modeAnonim  Boolean    @default(false) @map("mode_anonim")
+  kecamatan   String     @db.VarChar(80)
+  jenis       JenisDapur
+
+  /// Rentang biaya bahan per porsi. Rentang, bukan angka tunggal, karena harga
+  /// bahan bergerak dan angka tunggal akan terbaca lebih pasti dari kenyataan.
+  biayaBahanPerPorsiMin  Decimal @map("biaya_bahan_per_porsi_min") @db.Decimal(12, 2)
+  biayaBahanPerPorsiMaks Decimal @map("biaya_bahan_per_porsi_maks") @db.Decimal(12, 2)
+
+  /// Izin tampil dan izin video adalah dua hal berbeda di mata pemilik dapur,
+  /// jadi disimpan sebagai dua kolom terpisah — bukan satu boolean "setuju".
+  izinTampilPublik  Boolean   @default(false) @map("izin_tampil_publik")
+  izinVideoPublik   Boolean   @default(false) @map("izin_video_publik")
+  izinBerlakuSampai DateTime? @map("izin_berlaku_sampai") @db.Date
+
+  /// Penanda dapur contoh. Data dapur contoh tidak pernah boleh dipakai untuk
+  /// klaim dampak dan wajib diberi badge yang terlihat di UI (aturan 8).
+  isContoh   Boolean  @default(false) @map("is_contoh")
+  dibuatPada DateTime @default(now()) @map("dibuat_pada") @db.Timestamptz(6)
+
+  wadah         Wadah[]
+  jenisMasakan  JenisMasakan[]
+  catatanHarian CatatanHarian[]
+  sesiCoba      SesiCoba[]
+
+  @@map("dapur")
+}
+
+model Wadah {
+  id            String      @id @default(uuid()) @db.Uuid
+  dapurId       String      @map("dapur_id") @db.Uuid
+  nama          String      @db.VarChar(80)
+  bentuk        BentukWadah
+  fotoAcuanUrl  String?     @map("foto_acuan_url") @db.Text
+  /// Wadah yang pecah dinonaktifkan, tidak dihapus — riwayat estimasi yang
+  /// memakainya harus tetap bisa ditelusuri.
+  aktif         Boolean     @default(true)
+
+  dapur                 Dapur                  @relation(fields: [dapurId], references: [id], onDelete: Cascade)
+  kalibrasi             Kalibrasi[]
+  estimasi              Estimasi[]
+  penimbanganReferensi  PenimbanganReferensi[]
+  sebaranTebakan        SebaranTebakan[]
+
+  @@unique([dapurId, nama])
+  @@index([dapurId, aktif])
+  @@map("wadah")
+}
+
+model JenisMasakan {
+  id            String        @id @default(uuid()) @db.Uuid
+  dapurId       String        @map("dapur_id") @db.Uuid
+  nama          String        @db.VarChar(80)
+  kategoriFisik KategoriFisik @map("kategori_fisik")
+
+  dapur     Dapur       @relation(fields: [dapurId], references: [id], onDelete: Cascade)
+  kalibrasi Kalibrasi[]
+  estimasi  Estimasi[]
+
+  @@unique([dapurId, nama])
+  @@map("jenis_masakan")
+}
+
+/// KALIBRASI DUA DIMENSI — inti rekayasa produk ini.
+///
+/// Konstanta `porsiPenuh` milik PASANGAN (wadah x jenis masakan), bukan milik
+/// wadah saja. Panci yang sama berisi nasi dan berisi sayur berkuah menampung
+/// jumlah porsi yang sangat berbeda saat penuh. Kalibrasi satu dimensi akan
+/// salah secara sistematis, dan kesalahan sistematis tidak bisa ditambal oleh
+/// koreksi berapa pun banyaknya.
+///
+/// Unique constraint di bawah inilah yang membuat klaim "dua dimensi" menjadi
+/// jaminan basis data, bukan sekadar konvensi yang bisa dilanggar kode.
+model Kalibrasi {
+  id             String          @id @default(uuid()) @db.Uuid
+  wadahId        String          @map("wadah_id") @db.Uuid
+  jenisMasakanId String          @map("jenis_masakan_id") @db.Uuid
+  /// Jumlah porsi bila wadah terisi 100% oleh jenis masakan ini.
+  porsiPenuh     Decimal         @map("porsi_penuh") @db.Decimal(8, 2)
+  sumber         SumberKalibrasi @default(deklarasi)
+  jumlahKoreksi  Int             @default(0) @map("jumlah_koreksi")
+  diperbaruiPada DateTime        @default(now()) @map("diperbarui_pada") @db.Timestamptz(6)
+
+  wadah        Wadah        @relation(fields: [wadahId], references: [id], onDelete: Cascade)
+  jenisMasakan JenisMasakan @relation(fields: [jenisMasakanId], references: [id], onDelete: Cascade)
+
+  @@unique([wadahId, jenisMasakanId])
+  @@map("kalibrasi")
+}
+
+model CatatanHarian {
+  id            String   @id @default(uuid()) @db.Uuid
+  dapurId       String   @map("dapur_id") @db.Uuid
+  tanggal       DateTime @db.Date
+  porsiDimasak  Decimal  @map("porsi_dimasak") @db.Decimal(8, 2)
+  /// Null selama hari itu belum difinalisasi. Nilainya DIHITUNG dari estimasi
+  /// beserta koreksi terakhirnya, bukan diketik ulang oleh siapa pun.
+  porsiTersisaFinal Decimal? @map("porsi_tersisa_final") @db.Decimal(8, 2)
+
+  /// Hari anomali dikecualikan dari basis DAN dari lantai keras rekomendasi.
+  /// Kalau satu hari acara dengan konsumsi 500 dibiarkan masuk hitungan lantai,
+  /// rekomendasi 14 hari berikutnya terkunci di 500 dan produk yang dirancang
+  /// menekan sisa justru memproduksinya.
+  isAnomali      Boolean @default(false) @map("is_anomali")
+  alasanAnomali  String? @map("alasan_anomali") @db.VarChar(160)
+
+  /// Pencatatan mundur diizinkan tanpa peringatan dan tanpa hukuman. Ditandai
+  /// hanya supaya kualitas data bisa ditelusuri, bukan untuk menilai operator.
+  dicatatMundur Boolean  @default(false) @map("dicatat_mundur")
+  /// PERAN, bukan orang. Lihat catatan identitas di kepala berkas.
+  peranPencatat Peran    @map("peran_pencatat")
+  dibuatPada    DateTime @default(now()) @map("dibuat_pada") @db.Timestamptz(6)
+
+  dapur                Dapur                  @relation(fields: [dapurId], references: [id], onDelete: Cascade)
+  estimasi             Estimasi[]
+  penyaluran           Penyaluran[]
+  penimbanganReferensi PenimbanganReferensi[]
+  sebaranTebakan       SebaranTebakan[]
+
+  @@unique([dapurId, tanggal])
+  @@index([dapurId, tanggal(sort: Desc)])
+  @@index([dapurId, isAnomali])
+  @@map("catatan_harian")
+}
+
+/// Hasil pembacaan satu wadah pada satu hari.
+///
+/// Baris di tabel ini TIDAK PERNAH diubah setelah dibuat (CLAUDE.md aturan 2).
+/// Pembetulan masuk sebagai baris baru di `koreksi`, dan nilai final dihitung
+/// dari keduanya. Ini yang membuat halaman Akurasi bisa jujur: selisih antara
+/// tebakan sistem dan koreksi manusia masih ada di basis data.
+model Estimasi {
+  id              String         @id @default(uuid()) @db.Uuid
+  catatanHarianId String         @map("catatan_harian_id") @db.Uuid
+  wadahId         String         @map("wadah_id") @db.Uuid
+  jenisMasakanId  String         @map("jenis_masakan_id") @db.Uuid
+  metode          MetodeEstimasi
+
+  /// Seberapa penuh wadah, 0.0000-1.0000, tanpa satuan.
+  fraksiKeterisian Decimal @map("fraksi_keterisian") @db.Decimal(5, 4)
+  /// fraksiKeterisian x porsiPenuh, dibulatkan ke 2 desimal.
+  porsiEstimasi    Decimal @map("porsi_estimasi") @db.Decimal(8, 2)
+  /// Rentang keyakinan, lebarnya ditentukan kategoriFisik. Selalu ditampilkan
+  /// bersama angkanya — angka tunggal tanpa rentang terbaca lebih pasti
+  /// daripada yang bisa dipertanggungjawabkan.
+  rentangBawah     Decimal @map("rentang_bawah") @db.Decimal(8, 2)
+  rentangAtas      Decimal @map("rentang_atas") @db.Decimal(8, 2)
+
+  /// Sisa tercampur dalam satu wadah. Rentang dilebarkan ±40% dan input manual
+  /// diwajibkan — batas yang diakui, bukan ditambal.
+  isCampuran Boolean @default(false) @map("is_campuran")
+  fotoUrl    String? @map("foto_url") @db.Text
+  /// Latensi panggilan model. Null untuk metode slider dan manual.
+  latensiMs  Int?    @map("latensi_ms")
+  dibuatPada DateTime @default(now()) @map("dibuat_pada") @db.Timestamptz(6)
+
+  catatanHarian CatatanHarian @relation(fields: [catatanHarianId], references: [id], onDelete: Cascade)
+  wadah         Wadah         @relation(fields: [wadahId], references: [id])
+  jenisMasakan  JenisMasakan  @relation(fields: [jenisMasakanId], references: [id])
+  koreksi       Koreksi[]
+
+  @@index([catatanHarianId])
+  @@map("estimasi")
+}
+
+/// APPEND-ONLY. Hanya menerima INSERT.
+///
+/// Tidak pernah UPDATE, tidak pernah DELETE (CLAUDE.md aturan 2). Dua koreksi
+/// berurutan menghasilkan dua baris, dan nilai final adalah yang terakhir —
+/// bukan yang lama ditimpa. Jejak ini adalah bahan mentah halaman Akurasi dan
+/// bahan pembaruan konstanta kalibrasi.
+model Koreksi {
+  id         String @id @default(uuid()) @db.Uuid
+  estimasiId String @map("estimasi_id") @db.Uuid
+
+  /// Nilai sebelum koreksi ini. Disalin, bukan direferensikan, supaya urutan
+  /// koreksi tetap terbaca walau konstanta kalibrasi sudah berubah sejak itu.
+  porsiSebelum    Decimal @map("porsi_sebelum") @db.Decimal(8, 2)
+  porsiSesudah    Decimal @map("porsi_sesudah") @db.Decimal(8, 2)
+  selisihAbsolut  Decimal @map("selisih_absolut") @db.Decimal(8, 2)
+  /// PERAN, bukan orang.
+  peranPengoreksi Peran   @map("peran_pengoreksi")
+  dibuatPada      DateTime @default(now()) @map("dibuat_pada") @db.Timestamptz(6)
+
+  estimasi Estimasi @relation(fields: [estimasiId], references: [id], onDelete: Cascade)
+
+  @@index([estimasiId])
+  @@index([dibuatPada(sort: Desc)])
+  @@map("koreksi")
+}
+
+model Penyaluran {
+  id              String           @id @default(uuid()) @db.Uuid
+  catatanHarianId String           @map("catatan_harian_id") @db.Uuid
+  tujuan          TujuanPenyaluran
+  catatan         String?          @db.VarChar(160)
+
+  catatanHarian CatatanHarian @relation(fields: [catatanHarianId], references: [id], onDelete: Cascade)
+
+  @@index([catatanHarianId])
+  @@map("penyaluran")
+}
+
+/// SUMBER TUNGGAL ANGKA DAMPAK.
+///
+/// Rupiah, kilogram, dan persentase sisa dihitung dari tabel ini — tidak pernah
+/// dari `estimasi` (CLAUDE.md aturan 5). Estimasi model untuk operasional
+/// harian; timbangan tim untuk klaim. Sistem harus bisa menjawab "angka ini
+/// dari mana" di level basis data, bukan di level narasi.
+model PenimbanganReferensi {
+  id              String @id @default(uuid()) @db.Uuid
+  catatanHarianId String @map("catatan_harian_id") @db.Uuid
+  /// Null bila penimbangan mencakup beberapa wadah sekaligus.
+  wadahId         String? @map("wadah_id") @db.Uuid
+
+  /// Berat sebagai gram bilangan bulat. Bukan kilogram desimal — kilogram
+  /// mengundang float, dan berat dijumlahkan berkali-kali di laporan.
+  beratGram            Int @map("berat_gram")
+  beratWadahKosongGram Int @map("berat_wadah_kosong_gram")
+
+  /// Porsi setara hasil konversi, bila tim menghitungnya. Null bila tidak.
+  porsiSetara Decimal?   @map("porsi_setara") @db.Decimal(8, 2)
+  diukurOleh  DiukurOleh @map("diukur_oleh")
+  /// Cara pengukuran, supaya angkanya bisa direplikasi orang lain.
+  metode      String     @db.VarChar(120)
+  tanggalUkur DateTime   @map("tanggal_ukur") @db.Date
+
+  catatanHarian CatatanHarian @relation(fields: [catatanHarianId], references: [id], onDelete: Cascade)
+  wadah         Wadah?        @relation(fields: [wadahId], references: [id])
+
+  @@index([catatanHarianId])
+  @@map("penimbangan_referensi")
+}
+
+/// Tebakan manusia terhadap isi wadah, dikumpulkan SEBELUM penimbangan.
+///
+/// Gunanya membandingkan galat sistem dengan galat manusia pada tugas yang
+/// sama. Peran penebak dicatat sebagai kategori, bukan sebagai orang.
+model SebaranTebakan {
+  id              String       @id @default(uuid()) @db.Uuid
+  catatanHarianId String       @map("catatan_harian_id") @db.Uuid
+  wadahId         String       @map("wadah_id") @db.Uuid
+  peranPenebak    PeranPenebak @map("peran_penebak")
+
+  tebakanPorsi     Decimal @map("tebakan_porsi") @db.Decimal(8, 2)
+  angkaSebenarnya  Decimal @map("angka_sebenarnya") @db.Decimal(8, 2)
+  /// Kondisi saat menebak (pencahayaan, jarak, sudut pandang).
+  kondisi          String  @db.VarChar(160)
+  tanggal          DateTime @db.Date
+
+  catatanHarian CatatanHarian @relation(fields: [catatanHarianId], references: [id], onDelete: Cascade)
+  wadah         Wadah         @relation(fields: [wadahId], references: [id])
+
+  @@index([catatanHarianId])
+  @@map("sebaran_tebakan")
+}
+
+/// Sesi mode coba. Terisolasi dari data dapur nyata (CLAUDE.md aturan 8):
+/// selalu menunjuk ke dapur contoh, tidak pernah ke dapur sungguhan.
+model SesiCoba {
+  id              String   @id @default(uuid()) @db.Uuid
+  token           String   @unique @db.VarChar(64)
+  dapurContohId   String   @map("dapur_contoh_id") @db.Uuid
+  kedaluwarsaPada DateTime @map("kedaluwarsa_pada") @db.Timestamptz(6)
+
+  dapurContoh Dapur @relation(fields: [dapurContohId], references: [id], onDelete: Cascade)
+
+  @@map("sesi_coba")
+}

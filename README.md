@@ -85,10 +85,9 @@ Buka `http://localhost:3000`. Layar utama akan menampilkan data dapur contoh.
 
 ### Wajib untuk menjalankan lokal
 
-| Variabel       | Isi                                                        | Bila kosong          |
-| -------------- | ---------------------------------------------------------- | -------------------- |
-| `DATABASE_URL` | Connection string PostgreSQL                               | Aplikasi gagal start |
-| `DIRECT_URL`   | Koneksi langsung tanpa pooler, dipakai `prisma migrate`     | Migrasi gagal        |
+| Variabel       | Isi                          | Bila kosong          |
+| -------------- | ---------------------------- | -------------------- |
+| `DATABASE_URL` | Connection string PostgreSQL | Aplikasi gagal start |
 
 ### Opsional — hanya bila fiturnya dipakai
 
