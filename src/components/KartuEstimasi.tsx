@@ -28,6 +28,13 @@ export interface KartuEstimasiProps {
   sumberKalibrasi: "deklarasi" | "terkalibrasi";
   konstantaPerkiraan: boolean;
   wajibManual: boolean;
+  /**
+   * 9.13 — model kurang yakin pada foto ini (gelap, buram, sudut aneh).
+   *
+   * Angkanya tetap ditampilkan; yang berubah adalah penonjolan jalur geser.
+   * Menyembunyikan angkanya justru membuang informasi yang masih berguna.
+   */
+  keyakinanRendah?: boolean;
   onBenar: () => void;
   onKoreksi: () => void;
   menyimpan?: boolean;
@@ -44,6 +51,7 @@ export function KartuEstimasi({
   sumberKalibrasi,
   konstantaPerkiraan,
   wajibManual,
+  keyakinanRendah = false,
   onBenar,
   onKoreksi,
   menyimpan = false,
@@ -66,6 +74,21 @@ export function KartuEstimasi({
       <div className="mt-3">
         <BadgeSumberKalibrasi sumber={sumberKalibrasi} perkiraan={konstantaPerkiraan} />
       </div>
+
+      {/*
+       * 9.13 — foto sulit dibaca.
+       *
+       * Kalimatnya menyalahkan KONDISI FOTO, bukan operator, dan menyebut jalan
+       * keluar yang setara. "Pakai geser saja, hasilnya sama" adalah kalimat
+       * yang sama persis dipakai di seluruh produk untuk jalur ini — konsisten,
+       * dan tidak pernah terdengar seperti penurunan mutu.
+       */}
+      {keyakinanRendah && !wajibManual && (
+        <p className="text-konteks mt-3 rounded-lg bg-perhatian-100 px-3 py-2 text-perhatian-700">
+          Fotonya kurang jelas — mungkin kurang cahaya. Angka ini masih kasar; geser di
+          bawah kalau tidak cocok, hasilnya sama.
+        </p>
+      )}
 
       {wajibManual && (
         <p className="text-konteks mt-3 text-netral-700">

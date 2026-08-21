@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { periksaBerkasFoto } from "@/lib/berkas-foto";
 
 /*
  * Rana kamera dengan bingkai panduan — tugas 5.12.
@@ -15,6 +16,11 @@ import { useRef } from "react";
  *
  * `capture="environment"` membuka kamera belakang langsung, bukan pemilih
  * berkas — menghemat satu ketukan yang tidak terlihat di hitungan tapi terasa.
+ *
+ * 9.14 — BERKAS DIPERIKSA SEBELUM DIUNGGAH. Atribut `accept` di bawah hanya
+ * menyaring tampilan dialog, tidak menolak apa pun; penolakan sungguhannya ada
+ * di `periksaBerkasFoto()`. Menolak di sini berarti operator di jaringan dapur
+ * tidak menunggu berkas 20 MB terkirim hanya untuk ditolak di ujung sana.
  */
 
 export interface BingkaiKameraProps {
@@ -25,6 +31,7 @@ export interface BingkaiKameraProps {
 
 export function BingkaiKamera({ onFoto, aktif, sedangMembaca }: BingkaiKameraProps) {
   const masukan = useRef<HTMLInputElement>(null);
+  const [pesanBerkas, setPesanBerkas] = useState<string | null>(null);
 
   return (
     <section aria-label="Ambil foto wadah">
@@ -46,12 +53,32 @@ export function BingkaiKamera({ onFoto, aktif, sedangMembaca }: BingkaiKameraPro
         className="sr-only"
         onChange={(e) => {
           const berkas = e.target.files?.[0];
-          if (berkas) onFoto(berkas);
           // Dikosongkan supaya memotret wadah yang sama dua kali tetap memicu
-          // perubahan.
+          // perubahan. Dilakukan lebih dulu agar berlaku juga pada jalur tolak.
           e.target.value = "";
+
+          if (!berkas) return;
+
+          const periksa = periksaBerkasFoto(berkas);
+          if (!periksa.diterima) {
+            // 9.14 — berhenti di sini. Tidak ada permintaan jaringan sama sekali.
+            setPesanBerkas(periksa.pesan);
+            return;
+          }
+
+          setPesanBerkas(null);
+          onFoto(berkas);
         }}
       />
+
+      {pesanBerkas && (
+        <p
+          className="text-badan mt-3 rounded-xl bg-perhatian-100 px-4 py-3 text-perhatian-700"
+          role="alert"
+        >
+          {pesanBerkas}
+        </p>
+      )}
 
       <button
         type="button"

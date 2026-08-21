@@ -26,7 +26,20 @@ const PORSI_MAKS = 100_000;
 export const porsiTeks = z
   .string()
   .trim()
-  .regex(/^\d+(\.\d{1,2})?$/, "Angka porsi paling banyak dua desimal.")
+  .refine((s) => s !== "", "Angkanya belum diisi.")
+  /*
+   * 9.9 / 9.11 / 9.15 — PESAN MENYEBUT MASALAH YANG SEBENARNYA.
+   *
+   * Satu regex untuk semua bentuk salah menghasilkan pesan yang menyesatkan:
+   * "-5" dan "abc" bukan masalah jumlah desimal, tapi itulah yang akan dibaca
+   * operator. Ia lalu menghapus desimalnya, gagal lagi, dan tidak tahu kenapa.
+   *
+   * Jadi bentuk salah dipisah menurut penyebabnya, dan tiap penyebab menyebut
+   * jalan keluarnya sendiri.
+   */
+  .refine((s) => !s.startsWith("-"), "Angkanya tidak bisa minus.")
+  .refine((s) => /^\d+([.,]\d*)?$/.test(s), "Isi angkanya saja, tanpa huruf.")
+  .refine((s) => /^\d+(\.\d{1,2})?$/.test(s), "Angka porsi paling banyak dua desimal.")
   .refine((s) => Number(s) <= PORSI_MAKS, "Angkanya terlalu besar.")
   .refine((s) => Number(s) > 0, "Angkanya belum diisi.");
 
@@ -34,7 +47,11 @@ export const porsiTeks = z
 export const porsiTeksBolehNol = z
   .string()
   .trim()
-  .regex(/^\d+(\.\d{1,2})?$/, "Angka porsi paling banyak dua desimal.")
+  .refine((s) => s !== "", "Angkanya belum diisi.")
+  // 9.15 — koreksi ke angka negatif ditolak, dengan sebab yang benar.
+  .refine((s) => !s.startsWith("-"), "Angkanya tidak bisa minus.")
+  .refine((s) => /^\d+([.,]\d*)?$/.test(s), "Isi angkanya saja, tanpa huruf.")
+  .refine((s) => /^\d+(\.\d{1,2})?$/.test(s), "Angka porsi paling banyak dua desimal.")
   .refine((s) => Number(s) <= PORSI_MAKS, "Angkanya terlalu besar.");
 
 /** Fraksi keterisian 0..1 sebagai teks, paling banyak empat desimal. */
@@ -42,6 +59,22 @@ export const fraksiTeks = z
   .string()
   .trim()
   .regex(/^(0(\.\d{1,4})?|1(\.0{1,4})?)$/, "Keterisian harus antara 0 dan 1.");
+
+/**
+ * Batas atas porsi yang masih MASUK AKAL untuk satu hari dapur institusi.
+ *
+ * Berbeda dari `PORSI_MAKS`: angka di antara keduanya tetap DITERIMA, hanya
+ * ditandai "di luar pola" (tugas 9.10). Bedanya penting — menolak 999.999
+ * berarti menolak juga dapur yang memang sebesar itu, dan kita tidak tahu
+ * dapur orang lain sebesar apa. Yang bisa kita katakan jujur hanyalah "angka
+ * ini jauh di luar pola biasa", lalu membiarkan operator memutuskan.
+ */
+export const PORSI_WAJAR_MAKS = 5_000;
+
+/** `true` bila angkanya sah tapi jauh di luar pola dapur institusi (9.10). */
+export function diLuarPola(porsiTeksNilai: string): boolean {
+  return Number(porsiTeksNilai) > PORSI_WAJAR_MAKS;
+}
 
 /** Tanggal operasional `YYYY-MM-DD`. */
 export const tanggalTeks = z
@@ -57,7 +90,26 @@ export const tanggalTeks = z
     // diizinkan tanpa hukuman, tapi tahun 1899 berarti salah ketik.
     const tahun = Number(s.slice(0, 4));
     return tahun >= 2020 && tahun <= 2100;
-  }, "Tanggalnya terlalu jauh.");
+  }, "Tanggalnya terlalu jauh.")
+  .refine((s) => {
+    /*
+     * 9.18 — TANGGAL MASA DEPAN DITOLAK.
+     *
+     * Pencatatan mundur diizinkan tanpa hukuman (5.17); pencatatan MAJU tidak,
+     * karena porsi yang belum dimasak belum ada angkanya. Catatan bertanggal
+     * besok akan masuk ke jendela rekomendasi sebagai hari yang sudah selesai,
+     * dan menggeser lantai keras memakai data yang belum terjadi.
+     *
+     * Batasnya "hari ini di UTC", sama dengan kolom DATE-nya. Toleransi satu
+     * hari sengaja TIDAK diberikan: dapur yang mencatat lewat tengah malam
+     * memakai pemilih tanggal, bukan mengandalkan zona waktu server.
+     */
+    const hariIni = new Date();
+    const batas = new Date(
+      Date.UTC(hariIni.getUTCFullYear(), hariIni.getUTCMonth(), hariIni.getUTCDate()),
+    );
+    return new Date(`${s}T00:00:00.000Z`).getTime() <= batas.getTime();
+  }, "Tanggalnya belum sampai. Catatan hanya untuk hari ini atau hari yang sudah lewat.");
 
 const id = z.string().trim().min(1, "Pilihannya belum dibuat.");
 
@@ -188,3 +240,60 @@ export function pesanDariZod(galat: z.ZodError): string {
   if (pertama.message && !pertama.message.startsWith("Invalid")) return pertama.message;
   return "Isinya belum lengkap.";
 }
+
+// ---------------------------------------------------------------------------
+// 9.4 — endpoint riset
+// ---------------------------------------------------------------------------
+
+/*
+ * DUA ENDPOINT INI TIDAK PERNAH MUNCUL DI UI OPERATOR, dan tidak boleh.
+ *
+ * Keduanya adalah alat kerja lapangan tim: menimbang sisa dengan timbangan
+ * gantung, dan mengumpulkan tebakan manusia sebelum penimbangan. Operator
+ * tidak punya timbangan dan tidak punya alasan membuka layar ini.
+ *
+ * Alasannya bukan sekadar kerapian. `penimbangan_referensi` adalah SUMBER
+ * TUNGGAL angka dampak (aturan keras 5). Kalau operator bisa mengisinya lewat
+ * UI, angka klaim kita menjadi campuran timbangan tim dan tebakan lapangan —
+ * dan seluruh Impact Projection berdiri di atas sesuatu yang tidak bisa kita
+ * pertanggungjawabkan asalnya.
+ */
+
+/** Berat dalam GRAM BILANGAN BULAT (aturan keras 3). Bukan kilogram desimal. */
+const beratGram = z
+  .number()
+  .int("Berat dicatat dalam gram bulat.")
+  .min(0, "Berat tidak bisa minus.")
+  .max(500_000, "Beratnya di luar batas timbangan.");
+
+export const skemaPenimbangan = z.object({
+  catatanHarianId: id,
+  /** Null bila penimbangan mencakup beberapa wadah sekaligus. */
+  wadahId: z.string().trim().min(1).nullable().optional(),
+  beratGram,
+  beratWadahKosongGram: beratGram,
+  porsiSetara: porsiTeksBolehNol.nullable().optional(),
+  /** Cara pengukuran, supaya angkanya bisa direplikasi orang lain. */
+  metode: z
+    .string()
+    .trim()
+    .min(1, "Tulis cara pengukurannya.")
+    .max(120, "Keterangannya terlalu panjang."),
+  tanggalUkur: tanggalTeks,
+});
+
+export const skemaTebakan = z.object({
+  catatanHarianId: id,
+  wadahId: id,
+  /** PERAN, bukan orang (aturan keras 1). */
+  peranPenebak: z.enum(["staf_dapur", "pengunjung_lokasi", "lainnya"]),
+  tebakanPorsi: porsiTeksBolehNol,
+  angkaSebenarnya: porsiTeksBolehNol,
+  /** Kondisi saat menebak (pencahayaan, jarak, sudut pandang). */
+  kondisi: z
+    .string()
+    .trim()
+    .min(1, "Tulis kondisi saat menebak.")
+    .max(160, "Keterangannya terlalu panjang."),
+  tanggal: tanggalTeks,
+});

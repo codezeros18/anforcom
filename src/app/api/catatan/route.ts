@@ -1,7 +1,8 @@
 import { Prisma } from "@prisma/client";
+import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { galat, KODE_GALAT, sukses, tangani } from "../_lib/respons";
-import { pesanDariZod, skemaCatatanBaru } from "../_lib/skema";
+import { galat, KODE_GALAT, PESAN_BAWAAN, sukses, tangani } from "../_lib/respons";
+import { diLuarPola, pesanDariZod, skemaCatatanBaru } from "../_lib/skema";
 import { ambilDapurAktif } from "../_lib/data";
 import { tanggalUtc } from "../_lib/hitung";
 
@@ -42,6 +43,12 @@ export async function POST(permintaan: Request) {
             tanggal: catatan.tanggal.toISOString().slice(0, 10),
             porsiDimasak: catatan.porsiDimasak.toString(),
             dicatatMundur: catatan.dicatatMundur,
+            /*
+             * 9.10 — angka sah tapi jauh di luar pola TETAP DITERIMA, hanya
+             * ditandai. Menolaknya berarti menolak dapur yang memang sebesar
+             * itu, dan kita tidak tahu dapur orang lain sebesar apa.
+             */
+            diLuarPola: diLuarPola(hasil.data.porsiDimasak),
           },
         },
         201,
@@ -58,7 +65,34 @@ export async function POST(permintaan: Request) {
         penyebab instanceof Prisma.PrismaClientKnownRequestError &&
         penyebab.code === "P2002"
       ) {
-        return galat(KODE_GALAT.TANGGAL_SUDAH_ADA, 409);
+        /*
+         * 9.17 — 409 HARUS MEMBAWA JALAN KELUAR, bukan jalan buntu.
+         *
+         * Kode 409 saja meninggalkan operator di layar yang sama tanpa tahu
+         * harus berbuat apa. Yang dia butuhkan adalah id catatan yang sudah
+         * ada, supaya layar bisa menawarkan "buka catatan itu" — dan itu juga
+         * yang membuat 9.3 bekerja: ketukan kirim ke-2 sampai ke-5 mendapat
+         * jawaban yang bisa dipakai, bukan pesan gagal.
+         */
+        const adaDuluan = await db.catatanHarian.findUnique({
+          where: {
+            dapurId_tanggal: {
+              dapurId: dapur.id,
+              tanggal: tanggalUtc(hasil.data.tanggal),
+            },
+          },
+        });
+
+        return NextResponse.json(
+          {
+            ok: false as const,
+            kode: KODE_GALAT.TANGGAL_SUDAH_ADA,
+            pesan: PESAN_BAWAAN.TANGGAL_SUDAH_ADA,
+            // Jalan keluarnya, bukan sekadar keterangan kegagalan.
+            catatanId: adaDuluan?.id ?? null,
+          },
+          { status: 409 },
+        );
       }
       throw penyebab;
     }

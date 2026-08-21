@@ -23,6 +23,24 @@ import { rakitEstimasi } from "../../../_lib/estimasi";
 
 const UKURAN_FOTO_MAKS = 8 * 1024 * 1024;
 
+/*
+ * 9.13 — AMBANG KEYAKINAN RENDAH.
+ *
+ * Foto yang sangat gelap, buram, atau diambil dari sudut yang salah tetap
+ * menghasilkan angka — model hampir selalu menjawab sesuatu. Yang membedakan
+ * jawaban itu dari jawaban pada foto bagus hanyalah `keyakinan`, dan sampai
+ * Sprint 9 angka itu dibaca lalu dibuang.
+ *
+ * Membuangnya berarti estimasi dari foto gelap tampil dengan otoritas yang
+ * sama persis seperti estimasi dari foto terang. Operator tidak punya cara
+ * untuk tahu bedanya, dan justru pada foto gelap itulah koreksinya paling
+ * dibutuhkan.
+ *
+ * Angkanya TIDAK ditolak — ia tetap estimasi yang sah, dan slider memang sudah
+ * ada di layar sebagai jalur setara (P4). Yang berubah hanya penonjolannya.
+ */
+const AMBANG_KEYAKINAN_RENDAH = 0.55;
+
 export async function POST(
   permintaan: Request,
   konteks: { params: Promise<{ id: string }> },
@@ -114,6 +132,21 @@ export async function POST(
 
     if (!hasil.ok) return galat(KODE_GALAT.WADAH_TIDAK_TERDAFTAR, 422);
 
-    return sukses({ estimasi: hasil.estimasi }, 201);
+    /*
+     * 9.13 — keyakinan rendah diteruskan ke layar, TIDAK disimpan di basis data.
+     *
+     * Ia sifat satu pembacaan, bukan sifat estimasinya: nilai final estimasi
+     * ditentukan koreksi operator, dan itu sudah tersimpan di tabel `koreksi`.
+     * Menambah kolom untuk ini berarti mengubah skema di luar kebutuhan.
+     */
+    return sukses(
+      {
+        estimasi: {
+          ...hasil.estimasi,
+          keyakinanRendah: bacaan.keyakinan < AMBANG_KEYAKINAN_RENDAH,
+        },
+      },
+      201,
+    );
   });
 }

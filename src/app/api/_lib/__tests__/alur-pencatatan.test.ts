@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { lonjakanEkstrem } from "@/app/(operator)/catat/[id]/LayarPencatatan";
 import {
   fraksiTeks,
   porsiTeks,
@@ -211,10 +212,22 @@ describe("hitungan ketukan jalur normal (5.18)", () => {
     expect(posisiKartu).toBeGreaterThan(posisiSlider);
   });
 
-  it("TIDAK ADA langkah konfirmasi tambahan di alur", () => {
-    // Setiap "Yakin?" menggandakan ketukan pada langkah yang dijaganya.
+  it("TIDAK ADA langkah konfirmasi tambahan di JALUR NORMAL", () => {
+    /*
+     * Setiap "Yakin?" menggandakan ketukan pada langkah yang dijaganya.
+     *
+     * BATAS YANG DIPERTAJAM DI SPRINT 9. Larangan ini berlaku untuk jalur
+     * NORMAL — alur lima ketukan yang dilalui operator setiap hari. Tugas 9.16
+     * menambahkan tepat SATU konfirmasi, dan hanya pada keadaan ekstrem:
+     * koreksi yang melonjak sepuluh kali lipat dari bacaan.
+     *
+     * Keduanya tidak bertabrakan, dan bedanya bisa diuji: jalur normal tidak
+     * boleh punya konfirmasi sama sekali, sedangkan konfirmasi 9.16 harus
+     * BERSYARAT — tergantung `lonjakanEkstrem`, bukan muncul di setiap simpan.
+     * Konfirmasi yang muncul setiap kali akan dilewati tanpa dibaca, dan
+     * sesudah itu ia tidak menjaga apa pun.
+     */
     const berkas = [
-      "src/app/(operator)/catat/[id]/LayarPencatatan.tsx",
       "src/app/(operator)/catat/[id]/penyaluran/LayarPenyaluran.tsx",
       "src/components/KartuPenyaluran.tsx",
     ];
@@ -224,6 +237,34 @@ describe("hitungan ketukan jalur normal (5.18)", () => {
         .replace(/^\s*\/\/.*$/gm, "");
       expect(/yakin\?|konfirmasi|apakah anda/i.test(isi), jalur).toBe(false);
     }
+  });
+
+  it("konfirmasi 9.16 BERSYARAT pada lonjakan ekstrem, bukan di setiap simpan", () => {
+    const isi = readFileSync(
+      `${AKAR}/src/app/(operator)/catat/[id]/LayarPencatatan.tsx`,
+      "utf8",
+    );
+
+    // Ia dipicu perbandingan, bukan dipasang tanpa syarat.
+    expect(isi).toContain("lonjakanEkstrem(");
+    expect(isi).toContain("!perluKonfirmasi &&");
+
+    // Dan hanya berlaku saat sedang MENGOREKSI estimasi yang sudah ada —
+    // pencatatan wadah pertama kali tidak pernah menemuinya.
+    expect(isi).toContain("mengoreksiId !== null");
+  });
+
+  it("ambang lonjakan ekstrem berlaku dua arah dan aman pada acuan nol", () => {
+    /*
+     * Salah geser ke ujung kiri menghasilkan 0,5 porsi dari estimasi 50 — sama
+     * mustahilnya dengan lonjakan ke atas, dan sama mudahnya terjadi dengan
+     * jempol basah. Acuan nol tidak pernah dianggap lonjakan: estimasi nol yang
+     * dikoreksi menjadi angka wajar adalah kejadian normal.
+     */
+    expect(lonjakanEkstrem("5", "50")).toBe(true);
+    expect(lonjakanEkstrem("50", "5")).toBe(true);
+    expect(lonjakanEkstrem("50", "45")).toBe(false);
+    expect(lonjakanEkstrem("0", "40")).toBe(false);
   });
 
   it("input angka TIDAK memakai keyboard sistem", () => {

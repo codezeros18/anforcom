@@ -58,6 +58,26 @@ interface EstimasiTersimpan {
   wajibManual: boolean;
   sumberKalibrasi: "deklarasi" | "terkalibrasi";
   konstantaPerkiraan: boolean;
+  /** 9.13 — pembacaan model kurang meyakinkan (foto gelap, buram, sudut aneh). */
+  keyakinanRendah: boolean;
+}
+
+/**
+ * 9.16 — apakah koreksi melonjak ekstrem terhadap angka acuannya.
+ *
+ * Ambangnya sepuluh kali, ke ATAS maupun ke BAWAH. Arah turun ikut dijaga
+ * karena salah geser ke ujung kiri menghasilkan "0,5 porsi" dari estimasi 50 —
+ * sama mustahilnya, dan sama mudahnya terjadi dengan jempol basah.
+ *
+ * Acuan nol tidak pernah dianggap lonjakan: apa pun dibagi nol tidak punya
+ * kelipatan yang bermakna, dan estimasi nol yang dikoreksi menjadi angka wajar
+ * adalah kejadian normal ("ternyata masih ada").
+ */
+export function lonjakanEkstrem(acuan: string, baru: string): boolean {
+  const a = Number(acuan);
+  const b = Number(baru);
+  if (!Number.isFinite(a) || !Number.isFinite(b) || a <= 0) return false;
+  return b >= a * 10 || b * 10 <= a;
 }
 
 export function LayarPencatatan({
@@ -84,6 +104,19 @@ export function LayarPencatatan({
   const [tersimpan, setTersimpan] = useState(jumlahWadahTercatat);
   const [wadahTakTerdaftar, setWadahTakTerdaftar] = useState(false);
 
+  /*
+   * 9.16 — estimasi yang sedang dikoreksi.
+   *
+   * Berbeda dari `estimasi` (yang sedang DITAMPILKAN): begitu operator menekan
+   * "Koreksi", kartu hilang dan slider kembali, tapi id-nya harus tetap
+   * dipegang supaya geseran berikutnya menjadi KOREKSI atas estimasi itu —
+   * bukan estimasi baru yang memutus jejak audit.
+   */
+  const [mengoreksiId, setMengoreksiId] = useState<string | null>(null);
+  const [porsiAcuanKoreksi, setPorsiAcuanKoreksi] = useState<string | null>(null);
+  /** 9.16 — koreksi ekstrem sudah dikonfirmasi sekali; ketukan kedua meneruskannya. */
+  const [perluKonfirmasi, setPerluKonfirmasi] = useState(false);
+
   const siap = wadahId !== null && jenisId !== null;
   const porsiPenuh = siap
     ? (porsiPenuhPerPasangan[`${wadahId}|${jenisId}`] ?? null)
@@ -106,6 +139,7 @@ export function LayarPencatatan({
         wajibManual: boolean;
         sumberKalibrasi: "deklarasi" | "terkalibrasi";
         konstantaPerkiraan: boolean;
+        keyakinanRendah?: boolean;
       };
     };
     if (!isi.estimasi) return null;
@@ -121,6 +155,8 @@ export function LayarPencatatan({
       // perlu ditampilkan, dan ia hilang sendiri saat terkalibrasi (6.4).
       sumberKalibrasi: e.sumberKalibrasi,
       konstantaPerkiraan: e.konstantaPerkiraan,
+      // Jalur geser tidak memakai model, jadi tidak pernah "kurang yakin".
+      keyakinanRendah: e.keyakinanRendah === true,
     };
   }
 
@@ -168,7 +204,93 @@ export function LayarPencatatan({
     }
   }
 
-  async function kirimGeseran() {
+  /*
+   * 9.16 / ATURAN KERAS 2 — KOREKSI LEWAT ENDPOINT KOREKSI, bukan estimasi baru.
+   *
+   * Sampai Sprint 8, tombol "Koreksi" hanya mengembalikan layar ke slider, dan
+   * geseran berikutnya membuat baris `estimasi` KEDUA. Akibatnya: tabel
+   * `koreksi` tidak pernah terisi dari alur operator, selisih antara tebakan
+   * sistem dan penilaian manusia tidak pernah tercatat, dan halaman Akurasi
+   * kehilangan bahan mentahnya. Konstanta kalibrasi juga tidak ikut belajar,
+   * karena EWMA-nya dipicu dari koreksi.
+   *
+   * Sesudah perbaikan ini: kalau layar sedang mengoreksi estimasi yang SUDAH
+   * ADA, geseran dikirim ke `/api/estimasi/:id/koreksi`. Kalau belum ada
+   * estimasi, ia tetap membuat estimasi manual seperti biasa.
+   */
+  async function kirimKoreksi(estimasiId: string, porsiSesudah: string) {
+    setMenyimpan(true);
+    setPesan(null);
+
+    try {
+      const jawaban = await fetch(`/api/estimasi/${estimasiId}/koreksi`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ porsiSesudah }),
+      });
+      const badan: unknown = await jawaban.json();
+
+      if (!jawaban.ok) {
+        const isi = badan as { pesan?: string };
+        setPesan(isi.pesan ?? "Belum tersimpan. Coba sekali lagi.");
+        return;
+      }
+
+      selesaikanWadah();
+    } catch {
+      setPesan("Belum tersimpan. Coba sekali lagi.");
+    } finally {
+      setMenyimpan(false);
+      setPerluKonfirmasi(false);
+    }
+  }
+
+  /**
+   * Porsi yang diwakili posisi slider saat ini, sebagai teks dua desimal.
+   *
+   * `null` bila konstanta wadah belum diketahui — tanpa konstanta, persentase
+   * tidak bisa diterjemahkan menjadi porsi.
+   */
+  function porsiDariSlider(): string | null {
+    if (porsiPenuh === null) return null;
+    return ((Number(porsiPenuh) * persen) / 100).toFixed(2);
+  }
+
+  function kirimGeseran() {
+    if (!siap) return;
+
+    /*
+     * 9.16 — KOREKSI 10x ESTIMASI: DITERIMA, tapi dikonfirmasi SEKALI.
+     *
+     * Selisih sebesar ini hampir selalu salah ketik atau salah geser. Tapi
+     * "hampir selalu" bukan "selalu": wadah yang dikira hampir habis ternyata
+     * baru dibuka memang bisa sepuluh kali lipat. Jadi ia tidak ditolak —
+     * hanya ditanyakan sekali, lalu diteruskan apa adanya.
+     *
+     * Sekali, bukan setiap kali: dialog yang muncul berulang akan dilewati
+     * tanpa dibaca, dan sesudah itu ia tidak menjaga apa pun.
+     */
+    const porsiBaru = porsiDariSlider();
+    if (
+      mengoreksiId !== null &&
+      porsiAcuanKoreksi !== null &&
+      porsiBaru !== null &&
+      !perluKonfirmasi &&
+      lonjakanEkstrem(porsiAcuanKoreksi, porsiBaru)
+    ) {
+      setPerluKonfirmasi(true);
+      return;
+    }
+
+    if (mengoreksiId !== null && porsiBaru !== null) {
+      void kirimKoreksi(mengoreksiId, porsiBaru);
+      return;
+    }
+
+    void kirimEstimasiManual();
+  }
+
+  async function kirimEstimasiManual() {
     if (!siap) return;
 
     setMenyimpan(true);
@@ -210,6 +332,9 @@ export function LayarPencatatan({
   function selesaikanWadah() {
     setTersimpan((n) => n + 1);
     setEstimasi(null);
+    setMengoreksiId(null);
+    setPorsiAcuanKoreksi(null);
+    setPerluKonfirmasi(false);
     setWadahId(null);
     setJenisId(null);
     setIsCampuran(false);
@@ -287,6 +412,42 @@ export function LayarPencatatan({
           )}
 
           {/*
+           * 9.16 — konfirmasi sekali untuk koreksi yang melonjak ekstrem.
+           *
+           * Pertanyaannya menyebut kedua angka supaya operator bisa melihat
+           * sendiri selisihnya, dan nadanya bertanya — bukan menuduh salah.
+           */}
+          {perluKonfirmasi && porsiAcuanKoreksi !== null && (
+            <div className="rounded-xl bg-perhatian-100 px-4 py-3" role="alert">
+              <p className="text-badan text-perhatian-700">
+                Bacaan tadi {porsiAcuanKoreksi} porsi, sekarang {porsiDariSlider() ?? "-"}{" "}
+                porsi. Selisihnya jauh — sudah pas?
+              </p>
+              <div className="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    kirimGeseran();
+                  }}
+                  disabled={menyimpan}
+                  className="text-badan h-11 flex-1 rounded-lg bg-aksen-500 font-medium text-white disabled:opacity-40"
+                >
+                  Ya, simpan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPerluKonfirmasi(false);
+                  }}
+                  className="text-badan h-11 flex-1 rounded-lg border border-netral-300 font-medium text-netral-700"
+                >
+                  Geser lagi
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/*
            * SLIDER SELALU DI SINI. Dirender bersama kamera, bukan sesudahnya,
            * bukan menggantikannya. Inilah bentuk konkret P4.
            */}
@@ -295,7 +456,7 @@ export function LayarPencatatan({
             onUbah={setPersen}
             porsiPenuh={porsiPenuh}
             aktif={sliderAktif}
-            onSimpan={() => void kirimGeseran()}
+            onSimpan={kirimGeseran}
             menyimpan={menyimpan}
           />
         </>
@@ -308,12 +469,21 @@ export function LayarPencatatan({
           sumberKalibrasi={estimasi.sumberKalibrasi}
           konstantaPerkiraan={estimasi.konstantaPerkiraan}
           wajibManual={estimasi.wajibManual}
+          keyakinanRendah={estimasi.keyakinanRendah}
           menyimpan={menyimpan}
           onBenar={selesaikanWadah}
           onKoreksi={() => {
-            // "Koreksi" mengembalikan ke slider dengan angka pembacaan sebagai
-            // titik awal — operator menggeser dari angka yang sudah dekat,
-            // bukan dari nol.
+            /*
+             * "Koreksi" mengembalikan ke slider dengan angka pembacaan sebagai
+             * titik awal — operator menggeser dari angka yang sudah dekat,
+             * bukan dari nol.
+             *
+             * Id-nya DIPEGANG (9.16): geseran berikutnya menjadi baris koreksi
+             * atas estimasi ini, bukan estimasi kedua. Itu yang membuat jejak
+             * audit dan pembelajaran konstanta kalibrasi tetap terbentuk.
+             */
+            setMengoreksiId(estimasi.id);
+            setPorsiAcuanKoreksi(estimasi.porsiEstimasi);
             setEstimasi(null);
             setPesan(null);
           }}
