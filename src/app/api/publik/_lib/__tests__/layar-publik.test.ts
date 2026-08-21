@@ -310,6 +310,43 @@ describe("kartu rekomendasi (7.10, 7.11)", () => {
 
   it("angka bisa ditelusuri lewat tautan biasa, bukan tooltip JavaScript", () => {
     expect(isi).toContain("<a");
-    expect(isi).toContain("/riwayat/");
+    expect(isi).toContain("/riwayat");
+  });
+
+  it("tautan telusur menunjuk RUTE YANG SUNGGUH ADA", () => {
+    /*
+     * DITEMUKAN SAAT PEMERIKSAAN KESIAPAN SPRINT 10, di production.
+     *
+     * Tes lama hanya memeriksa bahwa string "/riwayat/" muncul — dan itu
+     * lolos walau tautannya menunjuk `/riwayat/<uuid>`, rute yang TIDAK PERNAH
+     * DIBUAT. Hasilnya 404 di layar publik, persis pada tautan yang gunanya
+     * membuktikan setiap angka bisa diperiksa asalnya.
+     *
+     * Pelajarannya: memeriksa bentuk string bukan memeriksa bahwa tautannya
+     * bekerja. Tes ini sekarang membandingkan tujuan tautan dengan rute yang
+     * benar-benar ada di `src/app`.
+     */
+    /*
+     * Dibaca dari KartuRekomendasi.tsx — di situlah tautannya dibuat, bukan di
+     * `page.tsx`. Versi pertama tes ini membaca berkas yang salah dan karena
+     * itu tetap hijau walau tautannya rusak; ia baru terbukti menggigit
+     * sesudah sumbernya dibetulkan.
+     */
+    const sumberTautan = baca(`${AKAR}/src/components/KartuRekomendasi.tsx`);
+    // Ambil seluruh isi href sampai backtick/kutip penutup — termasuk garis
+    // miring, supaya segmen dinamis `/riwayat/${id}` ikut terbaca utuh.
+    const tujuan = [...sumberTautan.matchAll(/href=\{?`([^`]+)`\}?/g)].map(
+      (m) => m[1] ?? "",
+    );
+    const keRiwayat = tujuan.filter((t) => t.startsWith("/riwayat"));
+    expect(keRiwayat.length).toBeGreaterThan(0);
+
+    for (const t of keRiwayat) {
+      // Anchor ke halaman daftar (`/riwayat#hari-...`) sah karena
+      // `(publik)/riwayat/page.tsx` ada. Segmen dinamis `/riwayat/<id>` TIDAK,
+      // karena tidak ada `riwayat/[id]/page.tsx`.
+      const segmenDinamis = /^\/riwayat\/[^#]/.test(t);
+      expect(segmenDinamis, `tautan ${t} menunjuk rute yang tidak ada`).toBe(false);
+    }
   });
 });

@@ -93,7 +93,7 @@ export function KartuRekomendasi(props: KartuRekomendasiProps) {
             {props.hariDipakai.map((h) => (
               <li key={h.catatanHarianId}>
                 <a
-                  href={`/riwayat/${h.catatanHarianId}`}
+                  href={`/riwayat#hari-${h.catatanHarianId}`}
                   className="text-aksen-600 underline"
                 >
                   {h.tanggal} — {h.konsumsi} porsi terpakai

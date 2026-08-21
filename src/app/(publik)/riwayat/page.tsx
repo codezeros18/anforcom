@@ -34,7 +34,16 @@ function BarisHari({ hari }: { hari: HariRinci }) {
   const adaKoreksi = hari.estimasi.some((e) => e.koreksi.length > 0);
 
   return (
-    <details className="border-b border-netral-200">
+    /*
+     * `id` dan `open` dipakai bersama oleh tautan "Angka itu dari hari mana?"
+     * di kartu rekomendasi: `/riwayat#hari-<id>` melompat ke baris ini, dan
+     * `:target` di bawah membukanya. Tidak perlu halaman detail terpisah —
+     * seluruh isinya sudah ada di baris ini.
+     */
+    <details
+      id={`hari-${hari.catatanHarianId}`}
+      className="border-b border-netral-200 target:bg-netral-100"
+    >
       <summary className="text-badan flex cursor-pointer items-baseline justify-between gap-3 py-3">
         <span
           className={hari.isAnomali ? "text-netral-500 line-through" : "text-netral-900"}
