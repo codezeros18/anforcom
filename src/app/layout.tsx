@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { BannerModeCoba } from "@/components/BannerModeCoba";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,7 +17,16 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="id" className="h-full antialiased">
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        {/*
+         * Banner mode coba dipasang SEKALI di sini, bukan per halaman.
+         * Alasannya ada di komentar kepala `BannerModeCoba.tsx`: halaman baru
+         * yang lupa memasangnya akan terlihat persis seperti dapur sungguhan.
+         * Ia merender `null` saat tidak ada sesi coba yang aktif.
+         */}
+        <BannerModeCoba />
+        {children}
+      </body>
     </html>
   );
 }

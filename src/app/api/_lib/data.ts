@@ -1,6 +1,18 @@
+import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import type { KonteksKalibrasi } from "@/core/kalibrasi";
 import { porsiDariString } from "@/core/porsi";
+import { dapurDariToken } from "@/app/api/publik/_lib/sesi-coba";
+
+/**
+ * Nama cookie pembawa token sesi coba.
+ *
+ * Cookie, bukan parameter di setiap pemanggilan, karena ia ikut secara otomatis
+ * ke server component MAUPUN route handler. Kalau token harus dioper manual,
+ * satu jalur yang lupa mengopernya akan diam-diam melayani dapur nyata — dan
+ * itulah kebocoran yang aturan keras 8 larang.
+ */
+export const COOKIE_SESI_COBA = "sisa_sesi_coba";
 
 /*
  * Jembatan Prisma -> bentuk `/core`.
@@ -25,6 +37,21 @@ import { porsiDariString } from "@/core/porsi";
  * Dicatat di PROGRESS.md bagian "utang teknis".
  */
 export async function ambilDapurAktif() {
+  /*
+   * MODE COBA DIPERIKSA LEBIH DULU — ATURAN KERAS 8.
+   *
+   * Ini titik tunggal tempat seluruh alur pencatatan menentukan dapur mana yang
+   * ditulis. Dengan pemeriksaan sesi coba di sini, setiap route handler yang
+   * sudah ada dan setiap route yang akan ditambah ikut terisolasi tanpa
+   * mengubah satu baris pun di dalamnya.
+   *
+   * `dapurDariToken()` secara konstruksi hanya mengembalikan dapur `isContoh`,
+   * jadi jalur ini TIDAK BISA mengembalikan dapur nyata walau tokennya dipalsu.
+   */
+  const token = (await cookies()).get(COOKIE_SESI_COBA)?.value;
+  const dapurCoba = await dapurDariToken(token);
+  if (dapurCoba) return dapurCoba;
+
   const idDariEnv = process.env.DAPUR_AKTIF_ID;
   if (idDariEnv) return db.dapur.findUnique({ where: { id: idDariEnv } });
 
